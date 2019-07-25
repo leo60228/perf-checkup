@@ -10,7 +10,7 @@ async fn main() -> Result<(), Error> {
     let mut interval = Interval::new(Duration::from_millis(2500));
     let mut handle = Default::default();
     while let Some(_) = interval.next().await {
-        println!("{}", display_bad_status(&mut handle).await?);
+        println!("{:?}", display_bad_status(&mut handle).await);
     }
     Ok(())
 }
