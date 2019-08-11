@@ -1,6 +1,6 @@
 #![feature(async_await)]
 
-use std::fs;
+use tokio::fs;
 use lazy_static::lazy_static;
 use regex::Regex;
 use snafu::{Snafu};
@@ -13,7 +13,7 @@ pub enum Error {
     RegexFail,
     #[snafu(display("Couldn't read file: {}", source))]
     ReadError {
-        source: std::io::Error,
+        source: tokio::io::Error,
     },
     #[snafu(display("Could not get CPU speed: {}", source))]
     CpuSpeed {
@@ -50,8 +50,9 @@ lazy_static! {
 
 const GPU_PATH: &'static str = "/sys/class/drm/card0/device/pp_dpm_sclk";
 
-pub fn get_gpu_sclk() -> Result<usize, Error> {
-    let dpm = fs::read_to_string(GPU_PATH)?;
+pub async fn get_gpu_sclk() -> Result<usize, Error> {
+    let dpm_buf = fs::read(GPU_PATH).await?;
+    let dpm = String::from_utf8(dpm_buf).expect("Got invalid UTF-8 from sysfs"); // this should never happen
     let sclk_str = MCLK_REGEX.captures(&dpm).and_then(|caps| caps.get(1)).ok_or(Error::RegexFail)?.as_str();
     Ok(sclk_str.parse()?)
 }
@@ -60,7 +61,7 @@ pub async fn check_status() -> Result<SpeedCheck, Error> {
     const EXPECTED_CPU: u64 = 650;
     const EXPECTED_GPU: usize = 1201;
 
-    let gpu = get_gpu_sclk()?;
+    let gpu = get_gpu_sclk().await?;
     let gpu_bad = gpu != EXPECTED_GPU;
 
     let cpu = heim::cpu::frequency().await?.current().get() / 1_000_000;
